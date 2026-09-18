@@ -1,0 +1,5 @@
+# Local environment and private API keys
+environment.ps1
+
+# Temporary files
+*.tmp
