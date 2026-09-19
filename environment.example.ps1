@@ -6,7 +6,6 @@
 # --- API Endpoint Configuration ---
 # Set your Ollama cloud or local endpoint:
 $AI_BASE_URL = "http://localhost:11434/v1"
-
 # --- Model Selection ---
 # Recommended cloud models:
 #   - "nemotron-3-nano:30b" : Fastest inference (3B active params), best for git hooks.

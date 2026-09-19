@@ -26,10 +26,10 @@ if (Test-Path $envFile) {
 
 # Apply default fallbacks
 if (-not $AI_BASE_URL) { $AI_BASE_URL = "http://localhost:11434/v1" }
-if (-not $AI_MODEL)    { $AI_MODEL    = "qwen2.5-coder:7b" }
-if (-not $AI_API_KEY)  { $AI_API_KEY  = "ollama" }
+if (-not $AI_MODEL) { $AI_MODEL = "qwen2.5-coder:7b" }
+if (-not $AI_API_KEY) { $AI_API_KEY = "ollama" }
 if (-not $AI_LANGUAGE) { $AI_LANGUAGE = "ru" }
-if (-not $AI_EXCLUDE)  { $AI_EXCLUDE  = @() }
+if (-not $AI_EXCLUDE) { $AI_EXCLUDE = @() }
 
 # Switch context to the target repository working tree
 if ($CWD) { Set-Location $CWD }
@@ -41,7 +41,7 @@ if ($CWD) { Set-Location $CWD }
 $targetPaths = @()
 if ($PathListFile -and (Test-Path $PathListFile)) {
     $rawPaths = Get-Content $PathListFile | Where-Object { $_.Trim() -ne "" }
-    $targetPaths = $rawPaths | Where-Object { 
+    $targetPaths = $rawPaths | Where-Object {
         (Test-Path $_ -PathType Leaf) -or ($_ -ne $CWD -and $_ -ne (Get-Location).Path)
     }
 }
@@ -86,39 +86,34 @@ foreach ($line in $diffLines) {
 $diffText = ($filteredDiff -join "`n").Trim()
 if (-not $diffText) { exit 0 }
 
-if ($diffText.Length -gt 6000) { 
+if ($diffText.Length -gt 6000) {
     $diffText = $diffText.Substring(0, 6000) + "`n[Diff truncated...]"
 }
 
 # ------------------------------------------------------------------------------
-# 3. Generate commit message via AI
+# 3. Prepare system prompt
 # ------------------------------------------------------------------------------
 
-$langInstruction = if ($AI_LANGUAGE -eq "ru") { 
-    "Write the commit message strictly in Russian." 
-} else { 
-    "Write the commit message strictly in English." 
+$langInstruction = if ($AI_LANGUAGE -eq "ru") {
+    "Write the commit message strictly in Russian."
+} else {
+    "Write the commit message strictly in English."
 }
 
-# Strict few-shot prompt forcing dashes (-) for bullet points
-$systemPrompt = @"
-You are an expert Git commit generator.
-Strict rules:
-1. Format: conventional+body
-   - Line 1: <type>(<optional-scope>): <imperative short summary max 72 chars>
-   - Line 2: MUST BE COMPLETELY EMPTY
-   - Line 3+: Bullet list explaining key changes. EVERY bullet point MUST begin with a dash and a space: "- ".
-2. DO NOT use asterisks (*), numbers, or introductory paragraphs.
-3. $langInstruction
-4. Output raw text ONLY. No markdown fences (no ```), no conversational intros.
+$promptFile = Join-Path $PSScriptRoot "prompt.txt"
 
-Example output format:
-feat(auth): implement refresh token rotation
-
-- Add refreshToken endpoint to authentication router
-- Store hash in Redis with a 7-day expiration
-- Revoke existing tokens upon password reset
+if (Test-Path $promptFile) {
+    # Load prompt from external file and inject language instruction
+    $rawPrompt = Get-Content $promptFile -Raw -Encoding UTF8
+    $systemPrompt = $rawPrompt.Replace("{{LANG_INSTRUCTION}}", $langInstruction)
+} else {
+    # Fallback built-in prompt in case prompt.txt is missing
+    $systemPrompt = @"
+You are an expert Git commit generator. Follow Conventional Commits (conventional+body).
+Output raw text only: subject line, blank line, then bullet points starting with '- '.
+$langInstruction
 "@
+}
 
 $payload = @{
     model = $AI_MODEL
@@ -131,13 +126,13 @@ $payload = @{
 
 $headers = @{
     "Authorization" = "Bearer $AI_API_KEY"
-    "Content-Type"  = "application/json; charset=utf-8"
+    "Content-Type" = "application/json; charset=utf-8"
 }
 
 try {
     $endpoint = "$($AI_BASE_URL.TrimEnd('/'))/chat/completions"
     $response = Invoke-RestMethod -Uri $endpoint -Method Post -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($payload)) -TimeoutSec 20
-    
+
     $commitMsg = $response.choices[0].message.content.Trim()
 
     # Fix PowerShell 5.1 mojibake bug (decoding UTF-8 as Latin-1 when charset header is missing)
@@ -147,10 +142,10 @@ try {
             $commitMsg = [System.Text.Encoding]::UTF8.GetString($rawBytes)
         } catch {}
     }
-    
+
     # Strip accidental markdown code blocks
     $commitMsg = $commitMsg -replace '^```[a-zA-Z]*\r?\n', '' -replace '\r?\n```$', ''
-    
+
     # Write to TortoiseGit message file
     [System.IO.File]::WriteAllText($MessageFile, $commitMsg, [System.Text.Encoding]::UTF8)
 } catch {
