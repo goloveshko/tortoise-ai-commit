@@ -24,11 +24,19 @@ if (Test-Path $envFile) {
     . $envFile
 }
 
+# Resolve active profile if defined
+if ($AI_PROFILES -and $AI_ACTIVE_PROFILE -and $AI_PROFILES.ContainsKey($AI_ACTIVE_PROFILE)) {
+    $selectedProfile = $AI_PROFILES[$AI_ACTIVE_PROFILE]
+    if ($selectedProfile.BaseUrl) { $AI_BASE_URL = $selectedProfile.BaseUrl }
+    if ($selectedProfile.Model) { $AI_MODEL = $selectedProfile.Model }
+    if ($selectedProfile.ApiKey) { $AI_API_KEY = $selectedProfile.ApiKey }
+}
+
 # Apply default fallbacks
 if (-not $AI_BASE_URL) { $AI_BASE_URL = "http://localhost:11434/v1" }
 if (-not $AI_MODEL) { $AI_MODEL = "qwen2.5-coder:7b" }
 if (-not $AI_API_KEY) { $AI_API_KEY = "ollama" }
-if (-not $AI_LANGUAGE) { $AI_LANGUAGE = "ru" }
+if (-not $AI_LANGUAGE) { $AI_LANGUAGE = "en" }
 if (-not $AI_FORMAT) { $AI_FORMAT = "conventional-body" }
 if (-not $AI_EXCLUDE) { $AI_EXCLUDE = @() }
 
@@ -113,6 +121,9 @@ $isCliMode = [string]::IsNullOrEmpty($MessageFile)
 
 if ($isCliMode) {
     Write-Host "`n🐢 Tortoise AI Commit" -ForegroundColor Green
+    if ($AI_ACTIVE_PROFILE) {
+        Write-Host "   Profile:  " -NoNewline; Write-Host $AI_ACTIVE_PROFILE -ForegroundColor Yellow
+    }
     Write-Host "   Model:    " -NoNewline; Write-Host $AI_MODEL -ForegroundColor Cyan
     Write-Host "   Format:   " -NoNewline; Write-Host $AI_FORMAT -ForegroundColor Magenta
     Write-Host "   Endpoint: " -NoNewline; Write-Host $AI_BASE_URL -ForegroundColor DarkGray

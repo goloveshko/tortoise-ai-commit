@@ -1,44 +1,47 @@
 # ==============================================================================
 # AI Commit Configuration (Template)
 # Rename this file to 'environment.ps1' and adjust settings to your setup.
-# Supports any OpenAI-compatible API (Ollama, LM Studio, OpenAI, OpenRouter, etc.)
 # ==============================================================================
 
-# --- API Endpoint Configuration ---
-# 1. Local Ollama (Default):
-$AI_BASE_URL = "http://localhost:11434/v1"
-$AI_MODEL = "qwen2.5-coder:7b"
-$AI_API_KEY = "ollama"  # Dummy key, required by client specification
+# --- Active Provider Profile ---
+# Switch between defined profiles by changing this single variable:
+# Available options: "ollama", "lm-studio", "openai", "openrouter"
+$AI_ACTIVE_PROFILE = "ollama"
 
-# 2. Local LM Studio (Alternative local runner):
-# $AI_BASE_URL = "http://localhost:1234/v1"
-# $AI_MODEL    = "qwen2.5-coder-7b-instruct"
-# $AI_API_KEY  = "lm-studio"
+# --- Provider Profiles ---
+$AI_PROFILES = @{
+    "ollama" = @{
+        BaseUrl = "http://localhost:11434/v1"
+        Model = "qwen2.5-coder:7b"
+        ApiKey = "ollama"
+    }
+    "lm-studio" = @{
+        BaseUrl = "http://localhost:1234/v1"
+        Model = "qwen2.5-coder-7b-instruct"
+        ApiKey = "lm-studio"
+    }
+    "openai" = @{
+        BaseUrl = "https://api.openai.com/v1"
+        Model = "gpt-4o-mini"
+        ApiKey = "sk-proj-YOUR_OPENAI_API_KEY_HERE"
+    }
+    "openrouter" = @{
+        BaseUrl = "https://openrouter.ai/api/v1"
+        Model = "deepseek/deepseek-chat"
+        ApiKey = "sk-or-YOUR_OPENROUTER_API_KEY_HERE"
+    }
+}
 
-# 3. Official OpenAI Cloud API:
-# $AI_BASE_URL = "https://api.openai.com/v1"
-# $AI_MODEL    = "gpt-4o-mini"
-# $AI_API_KEY  = "sk-proj-YOUR_OPENAI_API_KEY_HERE"
-
-# 4. OpenRouter / DeepSeek / Groq (or any OpenAI-compatible gateway):
-# $AI_BASE_URL = "https://openrouter.ai/api/v1"
-# $AI_MODEL    = "deepseek/deepseek-chat"
-# $AI_API_KEY  = "sk-or-YOUR_API_KEY_HERE"
-
-# Target language for commit messages.
-# Supports 2-letter ISO codes (en, ru, de, es, fr, zh, ja, it, pt, etc.)
-# or full language names in English (e.g. "Spanish", "German", "Japanese").
-$AI_LANGUAGE = "en"
-
-# Commit message format template (stored under prompts/ directory).
-# Available built-in formats:
-#   - "conventional-body" : Subject line + bullet points with dashes (Default)
-#   - "conventional"      : Single-line summary only
-#   - "gitmoji"           : Emoji-prefixed conventional commits
-# You can also add your own custom template: "prompts/your-custom-style.txt"
+# --- Commit Format Template ---
+# Options from prompts/ directory: "conventional-body", "conventional", "gitmoji"
 $AI_FORMAT = "conventional-body"
 
-# File patterns to exclude from commit diff analysis (drafts, scratchpads, temp logs)
+# --- Language Configuration ---
+# Supports 2-letter codes (en, ru, de, es, ja, etc.) or full names ("Spanish", "German")
+$AI_LANGUAGE = "en"
+
+# --- Exclusion Filter ---
+# Patterns to exclude from diff analysis (drafts, notes, temp files)
 $AI_EXCLUDE = @(
     "*.draft.*",
     "*temp*",
