@@ -57,7 +57,12 @@ if ($stagedDiff) {
     $diff = git diff HEAD
 }
 
-if (-not $diff) { exit 0 }
+if (-not $diff) {
+    if (-not $MessageFile) {
+        Write-Host "No staged or unstaged changes detected." -ForegroundColor Yellow
+    }
+    exit 0
+}
 
 # ------------------------------------------------------------------------------
 # 2. Filter out excluded drafts and temp files
@@ -150,12 +155,20 @@ try {
     # Strip accidental markdown code blocks
     $commitMsg = $commitMsg -replace '^```[a-zA-Z]*\r?\n', '' -replace '\r?\n```$', ''
 
-    # Write to TortoiseGit message file
-    [System.IO.File]::WriteAllText($MessageFile, $commitMsg, [System.Text.Encoding]::UTF8)
+    if ($MessageFile) {
+        # TortoiseGit mode: write to temporary message file
+        [System.IO.File]::WriteAllText($MessageFile, $commitMsg, [System.Text.Encoding]::UTF8)
+    } else {
+        # Standalone CLI mode: print directly to console
+        Write-Host "`n--- Generated Commit Message ---" -ForegroundColor Cyan
+        Write-Output $commitMsg
+        Write-Host "--------------------------------`n" -ForegroundColor Cyan
+    }
 } catch {
-    # On failure, inform user directly inside the commit message area
     $errMsg = "# [AI Error]: Unable to generate message ($($_.Exception.Message))`n# Please check your Ollama service or network connection.`n"
-    [System.IO.File]::WriteAllText($MessageFile, $errMsg, [System.Text.Encoding]::UTF8)
-} finally {
-    exit 0
+    if ($MessageFile) {
+        [System.IO.File]::WriteAllText($MessageFile, $errMsg, [System.Text.Encoding]::UTF8)
+    } else {
+        Write-Error $errMsg
+    }
 }
