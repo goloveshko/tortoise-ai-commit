@@ -34,6 +34,14 @@ if (-not $AI_EXCLUDE) { $AI_EXCLUDE = @() }
 # Switch context to the target repository working tree
 if ($CWD) { Set-Location $CWD }
 
+# Automatically resolve 2-letter codes (ru -> Russian, de -> German, sv -> Swedish)
+try {
+    $targetLanguage = [System.Globalization.CultureInfo]::GetCultureInfo($AI_LANGUAGE).EnglishName
+} catch {
+    # If not an ISO code, use raw value as provided (e.g., "Spanish", "Русский")
+    $targetLanguage = $AI_LANGUAGE
+}
+
 # ------------------------------------------------------------------------------
 # 1. Determine files to include in diff
 # ------------------------------------------------------------------------------
@@ -95,17 +103,25 @@ if ($diffText.Length -gt 6000) {
     $diffText = $diffText.Substring(0, 6000) + "`n[Diff truncated...]"
 }
 
+
 # ------------------------------------------------------------------------------
-# 3. Prepare system prompt
+# 3. CLI Banner (displayed only when running directly in terminal)
 # ------------------------------------------------------------------------------
 
-# Automatically resolve 2-letter codes (ru -> Russian, de -> German, sv -> Swedish)
-try {
-    $targetLanguage = [System.Globalization.CultureInfo]::GetCultureInfo($AI_LANGUAGE).EnglishName
-} catch {
-    # If not an ISO code, use raw value as provided (e.g., "Spanish", "Русский")
-    $targetLanguage = $AI_LANGUAGE
+$isCliMode = [string]::IsNullOrEmpty($MessageFile)
+
+if ($isCliMode) {
+    Write-Host "`n🐢 Tortoise AI Commit" -ForegroundColor Green
+    Write-Host "   Model:    " -NoNewline; Write-Host $AI_MODEL -ForegroundColor Cyan
+    Write-Host "   Endpoint: " -NoNewline; Write-Host $AI_BASE_URL -ForegroundColor DarkGray
+    Write-Host "   Language: " -NoNewline; Write-Host $targetLanguage -ForegroundColor Yellow
+    Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
+    Write-Host "⏳ Analyzing diff and generating message... Please wait.`n" -ForegroundColor DarkCyan
 }
+
+# ------------------------------------------------------------------------------
+# 4. Generate commit message via AI
+# ------------------------------------------------------------------------------
 
 $langInstruction = "Write the commit message strictly in $targetLanguage."
 
@@ -144,7 +160,7 @@ try {
 
     $commitMsg = $response.choices[0].message.content.Trim()
 
-    # Fix PowerShell 5.1 mojibake bug (decoding UTF-8 as Latin-1 when charset header is missing)
+    # Fix PowerShell 5.1 mojibake bug
     if ($commitMsg -match '[\u0080-\u009F]|Ð|Ñ') {
         try {
             $rawBytes = [System.Text.Encoding]::GetEncoding("ISO-8859-1").GetBytes($commitMsg)
@@ -155,20 +171,21 @@ try {
     # Strip accidental markdown code blocks
     $commitMsg = $commitMsg -replace '^```[a-zA-Z]*\r?\n', '' -replace '\r?\n```$', ''
 
-    if ($MessageFile) {
+    if (-not $isCliMode) {
         # TortoiseGit mode: write to temporary message file
         [System.IO.File]::WriteAllText($MessageFile, $commitMsg, [System.Text.Encoding]::UTF8)
     } else {
-        # Standalone CLI mode: print directly to console
-        Write-Host "`n--- Generated Commit Message ---" -ForegroundColor Cyan
+        # Standalone CLI mode: print beautiful output
+        Write-Host "✅ Commit message generated successfully:`n" -ForegroundColor Green
+        Write-Host "==================================================" -ForegroundColor DarkGray
         Write-Output $commitMsg
-        Write-Host "--------------------------------`n" -ForegroundColor Cyan
+        Write-Host "==================================================`n" -ForegroundColor DarkGray
     }
 } catch {
     $errMsg = "# [AI Error]: Unable to generate message ($($_.Exception.Message))`n# Please check your Ollama service or network connection.`n"
-    if ($MessageFile) {
+    if (-not $isCliMode) {
         [System.IO.File]::WriteAllText($MessageFile, $errMsg, [System.Text.Encoding]::UTF8)
     } else {
-        Write-Error $errMsg
+        Write-Host "❌ Error: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
