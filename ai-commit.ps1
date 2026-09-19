@@ -29,6 +29,7 @@ if (-not $AI_BASE_URL) { $AI_BASE_URL = "http://localhost:11434/v1" }
 if (-not $AI_MODEL) { $AI_MODEL = "qwen2.5-coder:7b" }
 if (-not $AI_API_KEY) { $AI_API_KEY = "ollama" }
 if (-not $AI_LANGUAGE) { $AI_LANGUAGE = "ru" }
+if (-not $AI_FORMAT) { $AI_FORMAT = "conventional-body" }
 if (-not $AI_EXCLUDE) { $AI_EXCLUDE = @() }
 
 # Switch context to the target repository working tree
@@ -113,6 +114,7 @@ $isCliMode = [string]::IsNullOrEmpty($MessageFile)
 if ($isCliMode) {
     Write-Host "`n🐢 Tortoise AI Commit" -ForegroundColor Green
     Write-Host "   Model:    " -NoNewline; Write-Host $AI_MODEL -ForegroundColor Cyan
+    Write-Host "   Format:   " -NoNewline; Write-Host $AI_FORMAT -ForegroundColor Magenta
     Write-Host "   Endpoint: " -NoNewline; Write-Host $AI_BASE_URL -ForegroundColor DarkGray
     Write-Host "   Language: " -NoNewline; Write-Host $targetLanguage -ForegroundColor Yellow
     Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
@@ -120,22 +122,21 @@ if ($isCliMode) {
 }
 
 # ------------------------------------------------------------------------------
-# 4. Generate commit message via AI
+# 4. Load prompt template
 # ------------------------------------------------------------------------------
 
 $langInstruction = "Write the commit message strictly in $targetLanguage."
 
-$promptFile = Join-Path $PSScriptRoot "prompt.txt"
+$promptPath = Join-Path $PSScriptRoot "prompts\$AI_FORMAT.txt"
 
-if (Test-Path $promptFile) {
-    # Load prompt from external file and inject language instruction
-    $rawPrompt = Get-Content $promptFile -Raw -Encoding UTF8
-    $systemPrompt = $rawPrompt.Replace("{{LANG_INSTRUCTION}}", $langInstruction)
+if (Test-Path $promptPath) {
+    $templateContent = Get-Content $promptPath -Raw -Encoding UTF8
+    $systemPrompt = $templateContent.Replace("{{LANG_INSTRUCTION}}", $langInstruction)
 } else {
-    # Fallback built-in prompt in case prompt.txt is missing
+    # Fallback prompt in case the selected format file is missing
     $systemPrompt = @"
 You are an expert Git commit generator. Follow Conventional Commits (conventional+body).
-Output raw text only: subject line, blank line, then bullet points starting with '- '.
+Output raw text only: subject line max 72 chars, blank line, then bullet points starting with '- '.
 $langInstruction
 "@
 }

@@ -30,6 +30,14 @@ $AI_API_KEY = "ollama"  # Dummy key, required by client specification
 # or full language names in English (e.g. "Spanish", "German", "Japanese").
 $AI_LANGUAGE = "en"
 
+# Commit message format template (stored under prompts/ directory).
+# Available built-in formats:
+#   - "conventional-body" : Subject line + bullet points with dashes (Default)
+#   - "conventional"      : Single-line summary only
+#   - "gitmoji"           : Emoji-prefixed conventional commits
+# You can also add your own custom template: "prompts/your-custom-style.txt"
+$AI_FORMAT = "conventional-body"
+
 # File patterns to exclude from commit diff analysis (drafts, scratchpads, temp logs)
 $AI_EXCLUDE = @(
     "*.draft.*",
