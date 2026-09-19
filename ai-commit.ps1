@@ -10,6 +10,8 @@ param(
     [string]$PathListFile,
     [string]$MessageFile,
     [string]$CWD,
+    [Alias("w", "context")]
+    [switch]$FunctionContext,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$CliFiles
 )
@@ -39,6 +41,7 @@ if (-not $AI_API_KEY) { $AI_API_KEY = "ollama" }
 if (-not $AI_LANGUAGE) { $AI_LANGUAGE = "en" }
 if (-not $AI_FORMAT) { $AI_FORMAT = "conventional-body" }
 if (-not $AI_EXCLUDE) { $AI_EXCLUDE = @() }
+if ($null -eq $AI_EXPAND_CONTEXT) { $AI_EXPAND_CONTEXT = $false }
 
 # Switch context to the target repository working tree
 if ($CWD) { Set-Location $CWD }
@@ -57,14 +60,24 @@ try {
 
 # Detect if launched by TortoiseGit (TortoiseGit supplies a temporary MessageFile and a valid CWD directory)
 $isTortoiseGit = $MessageFile -and $CWD -and (Test-Path $CWD -PathType Container) -and ($PathListFile -and (Test-Path $PathListFile -PathType Leaf))
+# In CLI mode, remaining arguments represent user-specified target files
 $specifiedFiles = @()
-
 if (-not $isTortoiseGit) {
-    # In CLI mode, all positional arguments represent user-specified target files
-    $allArgs = @($PathListFile, $MessageFile, $CWD) + $CliFiles | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $allArgs = @($PathListFile, $MessageFile, $CWD) + $CliFiles | Where-Object {
+        -not [string]::IsNullOrWhiteSpace($_) -and $_ -ne "-w" -and $_ -ne "--context"
+    }
     $specifiedFiles = @($allArgs)
     $MessageFile = $null
     $PathListFile = $null
+}
+
+# Determine if context expansion is active (via CLI switch -w or environment config)
+$expandContext = $FunctionContext.IsPresent -or ($true -eq $AI_EXPAND_CONTEXT)
+
+# Build arguments array for git diff
+$diffArgs = @()
+if ($expandContext) {
+    $diffArgs += "-W"
 }
 
 $targetPaths = @()
@@ -75,26 +88,26 @@ if ($PathListFile -and (Test-Path $PathListFile)) {
     }
 }
 
-$stagedDiff = git diff --cached
+$stagedDiff = git diff @diffArgs --cached
 $diff = ""
 
 if ($specifiedFiles.Count -gt 0) {
-    # Priority A: Specific files passed via CLI arguments (e.g. ai-commit file1 file2)
-    $specifiedStaged = git diff --cached -- $specifiedFiles
+    # Priority A: Specific files passed via CLI arguments
+    $specifiedStaged = git diff @diffArgs --cached -- $specifiedFiles
     if ($specifiedStaged) {
         $diff = $specifiedStaged
     } else {
-        $diff = git diff HEAD -- $specifiedFiles
+        $diff = git diff @diffArgs HEAD -- $specifiedFiles
     }
 } elseif ($stagedDiff) {
     # Priority B: Changes are already staged in Git index
     $diff = $stagedDiff
 } elseif ($targetPaths.Count -gt 0) {
     # Priority C: Specific files were selected in Windows Explorer (TortoiseGit)
-    $diff = git diff HEAD -- $targetPaths
+    $diff = git diff @diffArgs HEAD -- $targetPaths
 } else {
     # Priority D: Entire working tree
-    $diff = git diff HEAD
+    $diff = git diff @diffArgs HEAD
 }
 
 if (-not $diff) {
@@ -152,6 +165,9 @@ if ($isCliMode) {
     }
     Write-Host "   Model:    " -NoNewline; Write-Host $AI_MODEL -ForegroundColor Cyan
     Write-Host "   Format:   " -NoNewline; Write-Host $AI_FORMAT -ForegroundColor Magenta
+    if ($expandContext) {
+        Write-Host "   Context:  " -NoNewline; Write-Host "Full functions (-W)" -ForegroundColor DarkGreen
+    }
     if ($specifiedFiles.Count -gt 0) {
         Write-Host "   Files:    " -NoNewline; Write-Host ($specifiedFiles -join ", ") -ForegroundColor White
     }

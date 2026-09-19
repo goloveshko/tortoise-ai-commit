@@ -49,3 +49,8 @@ $AI_EXCLUDE = @(
     "todo.md",
     "scratchpad.*"
 )
+
+# Expand diff context to include entire enclosing functions (git diff -W / --function-context).
+# Helps the AI understand the scope and purpose of localized changes.
+# Can also be toggled on-the-fly via the '-w' CLI flag (e.g. ai-commit -w).
+$AI_EXPAND_CONTEXT = $false
