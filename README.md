@@ -1,19 +1,25 @@
 # Tortoise AI Commit 🐢✨
 
-> A lightweight **TortoiseGit Start-Commit hook** that automatically generates clean, informative commit messages in **Conventional Commits** (`conventional+body`) format using any OpenAI-compatible AI backend (local Ollama, LM Studio, OpenAI, OpenRouter, etc.).
+> A lightweight, dual-mode **TortoiseGit hook & CLI tool** that automatically generates clean, informative commit messages in **Conventional Commits** format using any OpenAI-compatible AI backend (local Ollama, LM Studio, OpenAI, OpenRouter, etc.).
 
 ---
 
 ## 🌟 Key Features
 
-- 🎯 **Native TortoiseGit Integration:** Automatically pre-fills the TortoiseGit commit message area when you open the commit dialog.
+- 🎯 **Dual Mode Operation:**
+  - **TortoiseGit Hook:** Automatically pre-fills the TortoiseGit commit message area upon opening the commit dialog.
+  - **Standalone CLI:** Run `ai-commit` directly in your favorite terminal (CMD, PowerShell, Windows Terminal) with formatted console output.
 - 🔌 **Universal OpenAI-Compatible API:** Works seamlessly with local models via **Ollama** or **LM Studio**, as well as cloud providers like **OpenAI**, **OpenRouter**, or **Groq**.
-- 📋 **Conventional Commits Format:** Generates standard `type(scope): summary` followed by clean bullet points (`- `).
-- 🧹 **Smart Draft & Scratchpad Filter:** Easily exclude untracked drafts, notes, or scratchpads using customizable glob patterns (`$AI_EXCLUDE`).
-- 📁 **Selective Staging Support:** If specific files are selected in Windows Explorer or already staged in the Git index, only their diff is sent to the LLM.
-- 🌐 **Bilingual Support:** Supports both English (`en`) and Russian (`ru`) commit generation out of the box.
-- 🛠️ **PowerShell 5.1 Mojibake Auto-Fix:** Contains built-in UTF-8 byte reconstruction to prevent Windows PowerShell encoding bugs with Cyrillic or special characters.
-- 📝 **External System Prompt:** Customize prompt instructions via `prompt.txt` without modifying the core script.
+- ⚡ **Instant Provider Profiles:** Switch between configured providers (Ollama, OpenAI, LM Studio, etc.) by changing a single word (`$AI_ACTIVE_PROFILE`).
+- 📋 **Modular Commit Formats:** Easily switch between built-in format templates or add your own in the `prompts/` directory:
+  - `conventional-body` (default: subject line + bullet points with dashes)
+  - `conventional` (single-line summary)
+  - `gitmoji` (emoji-prefixed conventional commits)
+- 🔍 **Deep Function Context (`-w` / `--context`):** Use `git diff -W` to provide the LLM with the entire enclosing function context, producing far more accurate commit descriptions for localized changes.
+- 🎯 **Targeted File Selection:** Pass specific files directly in the CLI (`ai-commit file1 file2`) to generate messages exclusively for those changes.
+- 🧹 **Smart Draft & Scratchpad Filter:** Automatically exclude untracked drafts, notes, or scratchpads using customizable glob patterns (`$AI_EXCLUDE`).
+- 🌐 **Universal Multilingual Support:** Supports any ISO 639-1 language code (`en`, `ru`, `de`, `es`, `fr`, `ja`, etc.) or full language name via built-in .NET `CultureInfo`.
+- 🛠️ **PowerShell 5.1 Mojibake Auto-Fix:** Contains built-in byte reconstruction to prevent Windows PowerShell encoding bugs with Cyrillic or special characters.
 
 ---
 
@@ -21,9 +27,13 @@
 
 ```text
 tortoise-ai-commit/
-├── ai-commit.ps1              # Main hook script
-├── environment.example.ps1    # Configuration template (rename to environment.ps1)
-├── prompt.txt                 # Customizable system prompt
+├── prompts/
+│   ├── conventional-body.txt  # Default: subject + bullet points with dashes
+│   ├── conventional.txt       # Single-line conventional commit
+│   └── gitmoji.txt            # Gitmoji conventional commit
+├── ai-commit.ps1              # Main hook and CLI engine
+├── ai-commit.cmd              # Command wrapper for fast terminal execution
+├── environment.example.ps1    # Configuration template (copy to environment.ps1)
 ├── .gitignore                 # Excludes local secrets (environment.ps1)
 ├── LICENSE                    # MIT License
 └── README.md
@@ -33,7 +43,7 @@ tortoise-ai-commit/
 
 ## 🚀 Installation & Setup
 
-### Step 1: Clone or Download the Repository
+### Step 1: Clone the Repository
 
 Clone this repository to a stable directory on your machine (e.g., `C:\Tools\tortoise-ai-commit`):
 
@@ -44,69 +54,100 @@ git clone https://github.com/goloveshko/tortoise-ai-commit.git C:\Tools\tortoise
 ### Step 2: Configure Environment
 
 1. In the project folder, duplicate `environment.example.ps1` and rename it to **`environment.ps1`**.
-2. Open `environment.ps1` in any text editor:
-   - Choose your provider (local **Ollama**, **LM Studio**, or **OpenAI** API key).
-   - Set `$AI_LANGUAGE = "en"` (or `"ru"`).
-   - Adjust `$AI_EXCLUDE` patterns for your draft files if needed.
+2. Open `environment.ps1` and adjust your preferences:
+   - **Active Profile:** Set `$AI_ACTIVE_PROFILE = "ollama"` (or `"openai"`, `"lm-studio"`, `"openrouter"`).
+   - **Format:** Choose `$AI_FORMAT = "conventional-body"` (or `"conventional"`, `"gitmoji"`).
+   - **Language:** Set `$AI_LANGUAGE = "en"` (or `"ru"`, `"de"`, `"es"`, etc.).
+   - **Exclusions:** Modify `$AI_EXCLUDE` for draft/temporary files.
 
 > 💡 **Recommended local model:** [`qwen2.5-coder:7b`](https://ollama.com/library/qwen2.5-coder). It is fast, lightweight, and excels at understanding Git diffs.
 
-### Step 3: Configure TortoiseGit Hook
+---
+
+## 🖥️ Usage
+
+### Option A: Standalone CLI (Terminal)
+
+To run `ai-commit` from anywhere in any terminal:
+
+1. Add `C:\Tools\tortoise-ai-commit` to your Windows **PATH** environment variable.
+2. Open any terminal in any Git repository and run:
+
+```bash
+# Generate commit message for all staged/unstaged changes:
+ai-commit
+
+# Generate with full function context (-W / --function-context):
+ai-commit -w
+
+# Generate only for specific files:
+ai-commit src/main.cpp include/config.h
+
+# Combine flags and specific files:
+ai-commit -w src/auth.go
+```
+
+### Option B: TortoiseGit Hook (GUI)
+
+To have commit messages generated automatically when opening TortoiseGit:
 
 1. Right-click anywhere in Windows Explorer and open **TortoiseGit → Settings**.
 2. In the left navigation tree, select **Hook Scripts**.
-3. Click the **Add...** button:
+3. Click **Add...**:
    - **Hook Type:** Select `Start Commit Hook`.
-   - **Run when working tree path is under:** Enter `*` *(an asterisk applies the hook to all repositories)* or specify a specific repository path.
+   - **Run when working tree path is under:** Enter `*` _(asterisk applies the hook to all repositories)_ or specify a particular repository path.
    - **Command Line To Execute:**
      ```cmd
      powershell.exe -ExecutionPolicy Bypass -File "C:\Tools\tortoise-ai-commit\ai-commit.ps1"
      ```
-     *(⚠️ Make sure to use your actual path to `ai-commit.ps1`. Do NOT append `%1` or `%2` — TortoiseGit appends them automatically).*
+     _(⚠️ Adjust to your actual path. Do NOT append `%1` or `%2` — TortoiseGit appends them automatically)._
    - **Wait for the script to finish:** ✅ Checked.
    - **Hide the script while running:** ✅ Checked.
    - **Enable:** ✅ Checked (at the top of the dialog).
 4. Click **OK** and **Apply**.
 
----
-
-## ⏱️ How It Works & What to Expect
-
-1. When you right-click and choose **Git Commit...**, TortoiseGit triggers the hook script *before* displaying the commit window.
-2. **Note on Execution Delay:** 
-   > The commit window will take **2 to 6 seconds** to appear. This delay occurs because the hook synchronously gathers the Git diff, queries the LLM, and writes the response into TortoiseGit's message buffer before the dialog is rendered.
-3. The TortoiseGit window opens with the commit summary and detailed bullet points already populated.
-4. You can edit, adjust, or completely replace the generated message before pressing **Commit**.
+> ⏱️ **Note on TortoiseGit Delay:** When clicking _Git Commit..._, the dialog will take **2 to 5 seconds** to appear. This delay occurs because the hook queries the LLM and pre-fills the message before the window is rendered.
 
 ---
 
-## ⚙️ Customization
+## ⚙️ Advanced Customization
 
-### Customizing the System Prompt
-You can modify `prompt.txt` to enforce custom team guidelines or different commit conventions. 
+### Adding Custom Commit Formats
 
-- Keep `{{LANG_INSTRUCTION}}` in `prompt.txt` if you want the script to dynamically swap language instructions based on `$AI_LANGUAGE` in `environment.ps1`.
-- If `prompt.txt` is missing or deleted, the script automatically falls back to an internal default prompt.
+Create a new text file inside the `prompts/` directory (e.g., `prompts/my-style.txt`). In your `environment.ps1`, specify:
 
-### Selective Diffs & Ignoring Drafts
-- **Selected Files:** If you highlight specific files in Windows Explorer before clicking *Git Commit...*, only those files are analyzed.
-- **Staged Files:** If files are already staged (`git add`), the script prioritizes staged changes (`git diff --cached`).
-- **Exclude Patterns:** Add filename patterns to `$AI_EXCLUDE` in `environment.ps1` (e.g., `*.scratch.*`, `temp.log`) to keep work-in-progress code out of the diff sent to the AI.
+```powershell
+$AI_FORMAT = "my-style"
+```
+
+Use `{{LANG_INSTRUCTION}}` inside your prompt file to allow dynamic language substitution.
+
+### Expanding Function Context Globally
+
+If you always want the AI to analyze entire functions instead of small diff hunks, enable it in `environment.ps1`:
+
+```powershell
+$AI_EXPAND_CONTEXT = $true
+```
 
 ---
 
 ## ❓ Troubleshooting
 
-### The commit message is blank or shows `# [AI Error]`
-If the AI server is unavailable or times out, the script will write an error explanation directly into the commit text box (e.g., `# [AI Error]: Unable to connect to server`).
-- If using **Ollama**, verify that it is running (`ollama list` or check the system tray).
-- Check that the model specified in `environment.ps1` is pulled and available (`ollama pull qwen2.5-coder:7b`).
-- Check your network connectivity or API key if using cloud providers.
+### The commit message shows `# [AI Error]`
+
+If the AI server is unreachable, times out, or returns an error, the script will write an error description directly into the commit text box (or terminal output).
+
+- If using **Ollama**, verify that the service is running (`ollama list` or check the system tray).
+- Verify that the model specified in your profile is downloaded (`ollama pull qwen2.5-coder:7b`).
+- Check your network connection and API keys for cloud providers.
 
 ### Execution Policy Error
-If PowerShell scripts are restricted on your system, ensure that the execution parameter `-ExecutionPolicy Bypass` is included in the TortoiseGit hook command line:
+
+If PowerShell scripts are restricted on your system, ensure `-ExecutionPolicy Bypass` is included in the hook command:
+
 ```cmd
-powershell.exe -ExecutionPolicy Bypass -File "C:\Path\To\ai-commit.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "C:\Tools\tortoise-ai-commit\ai-commit.ps1"
 ```
 
 ---

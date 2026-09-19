@@ -1,9 +1,10 @@
 <#
 .SYNOPSIS
-    TortoiseGit Start-Commit Hook script for AI-powered commit messages.
+    Dual-mode AI commit message generator for TortoiseGit and CLI.
 .DESCRIPTION
-    Headless hook script that extracts Git changes, filters out drafts,
-    and queries an OpenAI-compatible endpoint to generate commit messages.
+    Extracts Git changes, filters out drafts, and queries any OpenAI-compatible
+    endpoint (Ollama, LM Studio, OpenAI, OpenRouter) to generate commit messages.
+    Supports both TortoiseGit Start-Commit hook integration and standalone terminal usage.
 #>
 
 param(
