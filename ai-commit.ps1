@@ -94,11 +94,15 @@ if ($diffText.Length -gt 6000) {
 # 3. Prepare system prompt
 # ------------------------------------------------------------------------------
 
-$langInstruction = if ($AI_LANGUAGE -eq "ru") {
-    "Write the commit message strictly in Russian."
-} else {
-    "Write the commit message strictly in English."
+# Automatically resolve 2-letter codes (ru -> Russian, de -> German, sv -> Swedish)
+try {
+    $targetLanguage = [System.Globalization.CultureInfo]::GetCultureInfo($AI_LANGUAGE).EnglishName
+} catch {
+    # If not an ISO code, use raw value as provided (e.g., "Spanish", "Русский")
+    $targetLanguage = $AI_LANGUAGE
 }
+
+$langInstruction = "Write the commit message strictly in $targetLanguage."
 
 $promptFile = Join-Path $PSScriptRoot "prompt.txt"
 
