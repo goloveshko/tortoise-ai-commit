@@ -11,7 +11,7 @@ param(
     [string]$MessageFile,
     [string]$CWD,
     [Parameter(ValueFromRemainingArguments = $true)]
-    $ExtraArgs
+    [string[]]$CliFiles
 )
 
 # Ensure proper UTF-8 handling for non-ASCII characters and TortoiseGit integration
@@ -55,6 +55,18 @@ try {
 # 1. Determine files to include in diff
 # ------------------------------------------------------------------------------
 
+# Detect if launched by TortoiseGit (TortoiseGit supplies a temporary MessageFile and a valid CWD directory)
+$isTortoiseGit = $MessageFile -and $CWD -and (Test-Path $CWD -PathType Container) -and ($PathListFile -and (Test-Path $PathListFile -PathType Leaf))
+$specifiedFiles = @()
+
+if (-not $isTortoiseGit) {
+    # In CLI mode, all positional arguments represent user-specified target files
+    $allArgs = @($PathListFile, $MessageFile, $CWD) + $CliFiles | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $specifiedFiles = @($allArgs)
+    $MessageFile = $null
+    $PathListFile = $null
+}
+
 $targetPaths = @()
 if ($PathListFile -and (Test-Path $PathListFile)) {
     $rawPaths = Get-Content $PathListFile | Where-Object { $_.Trim() -ne "" }
@@ -66,17 +78,32 @@ if ($PathListFile -and (Test-Path $PathListFile)) {
 $stagedDiff = git diff --cached
 $diff = ""
 
-if ($stagedDiff) {
+if ($specifiedFiles.Count -gt 0) {
+    # Priority A: Specific files passed via CLI arguments (e.g. ai-commit file1 file2)
+    $specifiedStaged = git diff --cached -- $specifiedFiles
+    if ($specifiedStaged) {
+        $diff = $specifiedStaged
+    } else {
+        $diff = git diff HEAD -- $specifiedFiles
+    }
+} elseif ($stagedDiff) {
+    # Priority B: Changes are already staged in Git index
     $diff = $stagedDiff
 } elseif ($targetPaths.Count -gt 0) {
+    # Priority C: Specific files were selected in Windows Explorer (TortoiseGit)
     $diff = git diff HEAD -- $targetPaths
 } else {
+    # Priority D: Entire working tree
     $diff = git diff HEAD
 }
 
 if (-not $diff) {
-    if (-not $MessageFile) {
-        Write-Host "No staged or unstaged changes detected." -ForegroundColor Yellow
+    if (-not $isTortoiseGit) {
+        if ($specifiedFiles.Count -gt 0) {
+            Write-Host "No changes detected in specified files: $($specifiedFiles -join ', ')" -ForegroundColor Yellow
+        } else {
+            Write-Host "No staged or unstaged changes detected in repository." -ForegroundColor Yellow
+        }
     }
     exit 0
 }
@@ -112,7 +139,6 @@ if ($diffText.Length -gt 6000) {
     $diffText = $diffText.Substring(0, 6000) + "`n[Diff truncated...]"
 }
 
-
 # ------------------------------------------------------------------------------
 # 3. CLI Banner (displayed only when running directly in terminal)
 # ------------------------------------------------------------------------------
@@ -126,6 +152,9 @@ if ($isCliMode) {
     }
     Write-Host "   Model:    " -NoNewline; Write-Host $AI_MODEL -ForegroundColor Cyan
     Write-Host "   Format:   " -NoNewline; Write-Host $AI_FORMAT -ForegroundColor Magenta
+    if ($specifiedFiles.Count -gt 0) {
+        Write-Host "   Files:    " -NoNewline; Write-Host ($specifiedFiles -join ", ") -ForegroundColor White
+    }
     Write-Host "   Endpoint: " -NoNewline; Write-Host $AI_BASE_URL -ForegroundColor DarkGray
     Write-Host "   Language: " -NoNewline; Write-Host $targetLanguage -ForegroundColor Yellow
     Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
