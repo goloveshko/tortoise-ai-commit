@@ -2,6 +2,10 @@
 
 > A lightweight, dual-mode **TortoiseGit hook & CLI tool** that automatically generates clean, informative commit messages in **Conventional Commits** format using any OpenAI-compatible AI backend (local Ollama, LM Studio, OpenAI, OpenRouter, etc.).
 
+<p align="center">
+  <img src="screenshots/preview.png" alt="Tortoise AI Commit CLI Preview" width="700">
+</p>
+
 ---
 
 ## 🌟 Key Features
