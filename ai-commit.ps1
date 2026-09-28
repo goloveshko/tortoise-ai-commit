@@ -44,6 +44,9 @@ if (-not $AI_LANGUAGE) { $AI_LANGUAGE = "en" }
 if (-not $AI_FORMAT) { $AI_FORMAT = "conventional-body" }
 if (-not $AI_EXCLUDE) { $AI_EXCLUDE = @() }
 if ($null -eq $AI_EXPAND_CONTEXT) { $AI_EXPAND_CONTEXT = $false }
+if (-not $AI_TIMEOUT) { $AI_TIMEOUT = 60 }
+if (-not $AI_MAX_DIFF_CHARS) { $AI_MAX_DIFF_CHARS = 6000 }
+if ($null -eq $AI_TEMPERATURE) { $AI_TEMPERATURE = 0.1 }
 
 # Switch context to the target repository working tree
 if ($CWD) { Set-Location $CWD }
@@ -187,8 +190,8 @@ foreach ($line in $diffLines) {
 $diffText = ($filteredDiff -join "`n").Trim()
 if (-not $diffText) { exit 0 }
 
-if ($diffText.Length -gt 6000) {
-    $diffText = $diffText.Substring(0, 6000) + "`n[Diff truncated...]"
+if ($diffText.Length -gt $AI_MAX_DIFF_CHARS) {
+    $diffText = $diffText.Substring(0, $AI_MAX_DIFF_CHARS) + "`n[Diff truncated...]"
 }
 
 # ------------------------------------------------------------------------------
@@ -249,7 +252,7 @@ $payload = @{
         @{ role = "system"; content = $systemPrompt },
         @{ role = "user"; content = "Here is the git diff:`n$diffText" }
     )
-    temperature = 0.1
+    temperature = $AI_TEMPERATURE
 } | ConvertTo-Json -Depth 5
 
 $headers = @{
@@ -262,7 +265,7 @@ $timer = [System.Diagnostics.Stopwatch]::StartNew()
 
 try {
     $endpoint = "$($AI_BASE_URL.TrimEnd('/'))/chat/completions"
-    $raw = Invoke-WebRequest -Uri $endpoint -Method Post -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($payload)) -TimeoutSec 20 -UseBasicParsing
+    $raw = Invoke-WebRequest -Uri $endpoint -Method Post -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($payload)) -TimeoutSec $AI_TIMEOUT -UseBasicParsing
 
     $timer.Stop()
     $elapsed = [math]::Round($timer.Elapsed.TotalSeconds, 1)

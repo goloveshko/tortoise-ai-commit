@@ -54,3 +54,13 @@ $AI_EXCLUDE = @(
 # Helps the AI understand the scope and purpose of localized changes.
 # Can also be toggled on-the-fly via the '-w' CLI flag (e.g. ai-commit -w).
 $AI_EXPAND_CONTEXT = $false
+
+# --- Request Tuning ---
+# Seconds to wait for the LLM response (local models need more on cold start)
+$AI_TIMEOUT = 60
+
+# Maximum diff size in characters sent to the model (larger diffs are truncated)
+$AI_MAX_DIFF_CHARS = 6000
+
+# Sampling temperature: lower = more deterministic messages
+$AI_TEMPERATURE = 0.1
