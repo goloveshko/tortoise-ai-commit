@@ -160,22 +160,30 @@ if ($diffText.Length -gt 6000) {
 $isCliMode = [string]::IsNullOrEmpty($MessageFile)
 
 if ($isCliMode) {
-    Write-Host "`n🐢 Tortoise AI Commit" -ForegroundColor Green
+    Write-Host "`n  🐢 Tortoise AI Commit" -ForegroundColor Green
+    Write-Host "  ────────────────────────────────────────────────────" -ForegroundColor DarkGray
     if ($AI_ACTIVE_PROFILE) {
-        Write-Host "   Profile:  " -NoNewline; Write-Host $AI_ACTIVE_PROFILE -ForegroundColor Yellow
+        Write-Host "  Profile   : " -ForegroundColor DarkGray -NoNewline
+        Write-Host $AI_ACTIVE_PROFILE -ForegroundColor Yellow
     }
-    Write-Host "   Model:    " -NoNewline; Write-Host $AI_MODEL -ForegroundColor Cyan
-    Write-Host "   Format:   " -NoNewline; Write-Host $AI_FORMAT -ForegroundColor Magenta
+    Write-Host "  Model     : " -ForegroundColor DarkGray -NoNewline
+    Write-Host $AI_MODEL -ForegroundColor Cyan
+    Write-Host "  Format    : " -ForegroundColor DarkGray -NoNewline
+    Write-Host $AI_FORMAT -ForegroundColor Magenta
     if ($expandContext) {
-        Write-Host "   Context:  " -NoNewline; Write-Host "Full functions (-W)" -ForegroundColor DarkGreen
+        Write-Host "  Context   : " -ForegroundColor DarkGray -NoNewline
+        Write-Host "Full functions (-W)" -ForegroundColor DarkGreen
     }
     if ($specifiedFiles.Count -gt 0) {
-        Write-Host "   Files:    " -NoNewline; Write-Host ($specifiedFiles -join ", ") -ForegroundColor White
+        Write-Host "  Files     : " -ForegroundColor DarkGray -NoNewline
+        Write-Host ($specifiedFiles -join ", ") -ForegroundColor White
     }
-    Write-Host "   Endpoint: " -NoNewline; Write-Host $AI_BASE_URL -ForegroundColor DarkGray
-    Write-Host "   Language: " -NoNewline; Write-Host $targetLanguage -ForegroundColor Yellow
-    Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
-    Write-Host "⏳ Analyzing diff and generating message... Please wait.`n" -ForegroundColor DarkCyan
+    Write-Host "  Endpoint  : " -ForegroundColor DarkGray -NoNewline
+    Write-Host $AI_BASE_URL -ForegroundColor DarkGray
+    Write-Host "  Language  : " -ForegroundColor DarkGray -NoNewline
+    Write-Host $targetLanguage -ForegroundColor Yellow
+    Write-Host "  ────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  ⏳ Querying LLM and analyzing diff...`n" -ForegroundColor DarkCyan
 }
 
 # ------------------------------------------------------------------------------
@@ -190,7 +198,6 @@ if (Test-Path $promptPath) {
     $templateContent = Get-Content $promptPath -Raw -Encoding UTF8
     $systemPrompt = $templateContent.Replace("{{LANG_INSTRUCTION}}", $langInstruction)
 } else {
-    # Fallback prompt in case the selected format file is missing
     $systemPrompt = @"
 You are an expert Git commit generator. Follow Conventional Commits (conventional+body).
 Output raw text only: subject line max 72 chars, blank line, then bullet points starting with '- '.
@@ -212,9 +219,15 @@ $headers = @{
     "Content-Type" = "application/json; charset=utf-8"
 }
 
+# Start execution timer for CLI output metrics
+$timer = [System.Diagnostics.Stopwatch]::StartNew()
+
 try {
     $endpoint = "$($AI_BASE_URL.TrimEnd('/'))/chat/completions"
     $response = Invoke-RestMethod -Uri $endpoint -Method Post -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($payload)) -TimeoutSec 20
+
+    $timer.Stop()
+    $elapsed = [math]::Round($timer.Elapsed.TotalSeconds, 1)
 
     $commitMsg = $response.choices[0].message.content.Trim()
 
@@ -233,17 +246,34 @@ try {
         # TortoiseGit mode: write to temporary message file
         [System.IO.File]::WriteAllText($MessageFile, $commitMsg, [System.Text.Encoding]::UTF8)
     } else {
-        # Standalone CLI mode: print beautiful output
-        Write-Host "✅ Commit message generated successfully:`n" -ForegroundColor Green
-        Write-Host "==================================================" -ForegroundColor DarkGray
-        Write-Output $commitMsg
-        Write-Host "==================================================`n" -ForegroundColor DarkGray
+        # Copy to system clipboard automatically
+        $copied = $false
+        try {
+            Set-Clipboard -Value $commitMsg
+            $copied = $true
+        } catch {}
+
+        # Standalone CLI mode: render clean boxed card
+        Write-Host "  ✨ Generated in ${elapsed}s:`n" -ForegroundColor Green
+        Write-Host "  ╭── Commit Message ─────────────────────────────────" -ForegroundColor Cyan
+        $commitMsg -split "`r?`n" | ForEach-Object {
+            Write-Host "  │ " -ForegroundColor Cyan -NoNewline
+            Write-Host $_
+        }
+        Write-Host "  ╰───────────────────────────────────────────────────`n" -ForegroundColor Cyan
+
+        # Bottom hint / clipboard status
+        if ($copied) {
+            Write-Host "  📋 Copied to clipboard! " -ForegroundColor DarkGreen -NoNewline
+            Write-Host "(Tip: Hold Alt to select text without borders)`n" -ForegroundColor DarkGray
+        }
     }
 } catch {
+    $timer.Stop()
     $errMsg = "# [AI Error]: Unable to generate message ($($_.Exception.Message))`n# Please check your Ollama service or network connection.`n"
     if (-not $isCliMode) {
         [System.IO.File]::WriteAllText($MessageFile, $errMsg, [System.Text.Encoding]::UTF8)
     } else {
-        Write-Host "❌ Error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "  ❌ Error ($($timer.Elapsed.TotalSeconds.ToString('0.0'))s): $($_.Exception.Message)`n" -ForegroundColor Red
     }
 }
