@@ -81,6 +81,13 @@ if ($expandContext) {
     $diffArgs += "-W"
 }
 
+# In a repository without commits, HEAD does not exist yet: compare against Git's empty tree
+if (git rev-parse --verify -q HEAD 2>$null) {
+    $baseRef = "HEAD"
+} else {
+    $baseRef = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+}
+
 $targetPaths = @()
 if ($PathListFile -and (Test-Path $PathListFile)) {
     $rawPaths = Get-Content $PathListFile | Where-Object { $_.Trim() -ne "" }
@@ -98,18 +105,18 @@ if ($specifiedFiles.Count -gt 0) {
     if ($specifiedStaged) {
         $diff = $specifiedStaged
     } else {
-        $diff = git diff @diffArgs HEAD -- $specifiedFiles
+        $diff = git diff @diffArgs $baseRef -- $specifiedFiles
     }
 } elseif ($targetPaths.Count -gt 0) {
     # Priority B: Specific files were selected in Windows Explorer (TortoiseGit).
     # Takes precedence over the staged diff so the message describes the selection.
-    $diff = git diff @diffArgs HEAD -- $targetPaths
+    $diff = git diff @diffArgs $baseRef -- $targetPaths
 } elseif ($stagedDiff) {
     # Priority C: Changes are already staged in Git index
     $diff = $stagedDiff
 } else {
     # Priority D: Entire working tree
-    $diff = git diff @diffArgs HEAD
+    $diff = git diff @diffArgs $baseRef
 }
 
 if (-not $diff) {
