@@ -170,10 +170,10 @@ $skipCurrentFile = $false
 
 foreach ($line in $diffLines) {
     if ($line -match '^diff --git a/(.*) b/(.*)$') {
-        $filePath = $matches[1]
+        # Check both sides so renames are excluded by their new name too
         $skipCurrentFile = $false
         foreach ($pattern in $AI_EXCLUDE) {
-            if ($filePath -like $pattern) {
+            if ($matches[1] -like $pattern -or $matches[2] -like $pattern) {
                 $skipCurrentFile = $true
                 break
             }
