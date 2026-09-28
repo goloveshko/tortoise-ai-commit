@@ -119,6 +119,32 @@ if ($specifiedFiles.Count -gt 0) {
     $diff = git diff @diffArgs $baseRef
 }
 
+# Append new (untracked) files, which git diff never shows on its own
+$scope = @()
+if ($specifiedFiles.Count -gt 0) { $scope = $specifiedFiles }
+elseif ($targetPaths.Count -gt 0) { $scope = $targetPaths }
+
+$repoRoot = (git rev-parse --show-toplevel 2>$null) -replace '/', '\'
+if ($repoRoot) {
+    $scopeAbs = @($scope | ForEach-Object {
+        $full = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine((Get-Location).Path, $_))
+        if ($full -like "$repoRoot*") { $full }
+    })
+    Push-Location $repoRoot
+    try {
+        $untracked = @(git ls-files --others --exclude-standard -- $scopeAbs)
+        $newFileDiffs = foreach ($f in $untracked) {
+            git diff --no-index -- "/dev/null" $f
+        }
+    } finally {
+        Pop-Location
+    }
+    if ($newFileDiffs) {
+        $untrackedDiff = ($newFileDiffs -join "`n")
+        if ($diff) { $diff = $diff + "`n" + $untrackedDiff } else { $diff = $untrackedDiff }
+    }
+}
+
 if (-not $diff) {
     if (-not $isTortoiseGit) {
         if ($specifiedFiles.Count -gt 0) {
