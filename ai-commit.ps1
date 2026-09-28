@@ -262,20 +262,16 @@ $timer = [System.Diagnostics.Stopwatch]::StartNew()
 
 try {
     $endpoint = "$($AI_BASE_URL.TrimEnd('/'))/chat/completions"
-    $response = Invoke-RestMethod -Uri $endpoint -Method Post -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($payload)) -TimeoutSec 20
+    $raw = Invoke-WebRequest -Uri $endpoint -Method Post -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($payload)) -TimeoutSec 20 -UseBasicParsing
 
     $timer.Stop()
     $elapsed = [math]::Round($timer.Elapsed.TotalSeconds, 1)
 
+    # Decode the response bytes explicitly: Windows PowerShell 5.1 would
+    # otherwise guess ISO-8859-1 and mangle non-ASCII (e.g. Cyrillic) text
+    $jsonText = [System.Text.Encoding]::UTF8.GetString($raw.RawContentStream.ToArray())
+    $response = $jsonText | ConvertFrom-Json
     $commitMsg = $response.choices[0].message.content.Trim()
-
-    # Fix PowerShell 5.1 mojibake bug
-    if ($commitMsg -match '[\u0080-\u009F]|Ð|Ñ') {
-        try {
-            $rawBytes = [System.Text.Encoding]::GetEncoding("ISO-8859-1").GetBytes($commitMsg)
-            $commitMsg = [System.Text.Encoding]::UTF8.GetString($rawBytes)
-        } catch {}
-    }
 
     # Strip accidental markdown code blocks
     $commitMsg = $commitMsg -replace '^```[a-zA-Z]*\r?\n', '' -replace '\r?\n```$', ''

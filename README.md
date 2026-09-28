@@ -23,7 +23,7 @@
 - 🎯 **Targeted File Selection:** Pass specific files directly in the CLI (`ai-commit file1 file2`) to generate messages exclusively for those changes.
 - 🧹 **Smart Draft & Scratchpad Filter:** Automatically exclude untracked drafts, notes, or scratchpads using customizable glob patterns (`$AI_EXCLUDE`).
 - 🌐 **Universal Multilingual Support:** Supports any ISO 639-1 language code (`en`, `ru`, `de`, `es`, `fr`, `ja`, etc.) or full language name via built-in .NET `CultureInfo`.
-- 🛠️ **PowerShell 5.1 Mojibake Auto-Fix:** Contains built-in byte reconstruction to prevent Windows PowerShell encoding bugs with Cyrillic or special characters.
+- 🛠️ **Correct UTF-8 Everywhere:** Responses are decoded from raw bytes with explicit UTF-8, so Cyrillic and other non-ASCII commit messages never turn into mojibake even in Windows PowerShell 5.1.
 
 ---
 
