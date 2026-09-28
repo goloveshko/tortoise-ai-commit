@@ -20,6 +20,7 @@ param(
 # Ensure proper UTF-8 handling for non-ASCII characters and TortoiseGit integration
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 # Load environment configuration if present
 $envFile = Join-Path $PSScriptRoot "environment.ps1"
@@ -277,8 +278,8 @@ try {
     $commitMsg = $commitMsg -replace '^```[a-zA-Z]*\r?\n', '' -replace '\r?\n```$', ''
 
     if (-not $isCliMode) {
-        # TortoiseGit mode: write to temporary message file
-        [System.IO.File]::WriteAllText($MessageFile, $commitMsg, [System.Text.Encoding]::UTF8)
+        # TortoiseGit mode: write to temporary message file (UTF-8 without BOM)
+        [System.IO.File]::WriteAllText($MessageFile, $commitMsg, $utf8NoBom)
     } else {
         # Copy to system clipboard automatically
         $copied = $false
@@ -306,7 +307,7 @@ try {
     $timer.Stop()
     $errMsg = "# [AI Error]: Unable to generate message ($($_.Exception.Message))`n# Please check your Ollama service or network connection.`n"
     if (-not $isCliMode) {
-        [System.IO.File]::WriteAllText($MessageFile, $errMsg, [System.Text.Encoding]::UTF8)
+        [System.IO.File]::WriteAllText($MessageFile, $errMsg, $utf8NoBom)
     } else {
         Write-Host "  ❌ Error ($($timer.Elapsed.TotalSeconds.ToString('0.0'))s): $($_.Exception.Message)`n" -ForegroundColor Red
     }
