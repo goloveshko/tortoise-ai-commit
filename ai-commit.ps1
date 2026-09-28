@@ -82,6 +82,9 @@ if ($expandContext) {
     $diffArgs += "-W"
 }
 
+# Keep non-ASCII paths readable (no octal escaping) for filters and the LLM prompt
+$gitCfg = @("-c", "core.quotepath=false")
+
 # In a repository without commits, HEAD does not exist yet: compare against Git's empty tree
 if (git rev-parse --verify -q HEAD 2>$null) {
     $baseRef = "HEAD"
@@ -97,27 +100,27 @@ if ($PathListFile -and (Test-Path $PathListFile)) {
     }
 }
 
-$stagedDiff = git diff @diffArgs --cached
+$stagedDiff = git @gitCfg diff @diffArgs --cached
 $diff = ""
 
 if ($specifiedFiles.Count -gt 0) {
     # Priority A: Specific files passed via CLI arguments
-    $specifiedStaged = git diff @diffArgs --cached -- $specifiedFiles
+    $specifiedStaged = git @gitCfg diff @diffArgs --cached -- $specifiedFiles
     if ($specifiedStaged) {
         $diff = $specifiedStaged
     } else {
-        $diff = git diff @diffArgs $baseRef -- $specifiedFiles
+        $diff = git @gitCfg diff @diffArgs $baseRef -- $specifiedFiles
     }
 } elseif ($targetPaths.Count -gt 0) {
     # Priority B: Specific files were selected in Windows Explorer (TortoiseGit).
     # Takes precedence over the staged diff so the message describes the selection.
-    $diff = git diff @diffArgs $baseRef -- $targetPaths
+    $diff = git @gitCfg diff @diffArgs $baseRef -- $targetPaths
 } elseif ($stagedDiff) {
     # Priority C: Changes are already staged in Git index
     $diff = $stagedDiff
 } else {
     # Priority D: Entire working tree
-    $diff = git diff @diffArgs $baseRef
+    $diff = git @gitCfg diff @diffArgs $baseRef
 }
 
 # Append new (untracked) files, which git diff never shows on its own
@@ -133,9 +136,9 @@ if ($repoRoot) {
     })
     Push-Location $repoRoot
     try {
-        $untracked = @(git ls-files --others --exclude-standard -- $scopeAbs)
+        $untracked = @(git @gitCfg ls-files --others --exclude-standard -- $scopeAbs)
         $newFileDiffs = foreach ($f in $untracked) {
-            git diff --no-index -- "/dev/null" $f
+            git @gitCfg diff --no-index -- "/dev/null" $f
         }
     } finally {
         Pop-Location
