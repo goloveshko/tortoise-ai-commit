@@ -100,12 +100,13 @@ if ($specifiedFiles.Count -gt 0) {
     } else {
         $diff = git diff @diffArgs HEAD -- $specifiedFiles
     }
-} elseif ($stagedDiff) {
-    # Priority B: Changes are already staged in Git index
-    $diff = $stagedDiff
 } elseif ($targetPaths.Count -gt 0) {
-    # Priority C: Specific files were selected in Windows Explorer (TortoiseGit)
+    # Priority B: Specific files were selected in Windows Explorer (TortoiseGit).
+    # Takes precedence over the staged diff so the message describes the selection.
     $diff = git diff @diffArgs HEAD -- $targetPaths
+} elseif ($stagedDiff) {
+    # Priority C: Changes are already staged in Git index
+    $diff = $stagedDiff
 } else {
     # Priority D: Entire working tree
     $diff = git diff @diffArgs HEAD
