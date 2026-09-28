@@ -307,7 +307,7 @@ try {
     }
 } catch {
     $timer.Stop()
-    $errMsg = "# [AI Error]: Unable to generate message ($($_.Exception.Message))`n# Please check your Ollama service or network connection.`n"
+    $errMsg = "# [AI Error]: Unable to generate message ($($_.Exception.Message))`n# Check the endpoint ($AI_BASE_URL), the model name and your network or API key.`n"
     if (-not $isCliMode) {
         [System.IO.File]::WriteAllText($MessageFile, $errMsg, $utf8NoBom)
     } else {
