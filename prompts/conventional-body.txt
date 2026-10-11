@@ -7,6 +7,7 @@ Strict rules:
 2. DO NOT use asterisks (*), numbers, or introductory paragraphs.
 3. {{LANG_INSTRUCTION}}
 4. Output raw text ONLY. No markdown fences (no ```), no conversational intros.
+5. Use plain ASCII hyphen '-' only. Never use the no-break hyphen (‑), non-breaking spaces or other exotic Unicode punctuation.
 
 Example output format:
 feat(auth): implement refresh token rotation

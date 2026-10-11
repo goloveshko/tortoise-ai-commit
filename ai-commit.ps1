@@ -276,6 +276,12 @@ try {
     $response = $jsonText | ConvertFrom-Json
     $commitMsg = $response.choices[0].message.content.Trim()
 
+    # LLMs love invisible lookalikes (‑ no-break hyphen, nbsp, zero-width spaces)
+    # that TortoiseGit renders as empty boxes
+    $commitMsg = $commitMsg -replace '[\u2010\u2011\u2012\u2212]', '-'
+    $commitMsg = $commitMsg -replace '\u00A0', ' '
+    $commitMsg = $commitMsg -replace '[\u200B-\u200D\uFEFF]', ''
+
     # Strip accidental markdown code blocks
     $commitMsg = $commitMsg -replace '^```[a-zA-Z]*\r?\n', '' -replace '\r?\n```$', ''
 

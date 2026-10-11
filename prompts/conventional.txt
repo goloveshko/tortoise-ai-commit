@@ -6,6 +6,7 @@ Strict rules:
 3. Do NOT include any body, bullet points, or multiple lines.
 4. {{LANG_INSTRUCTION}}
 5. Output raw text ONLY. No markdown fences (no ```), no conversational intros.
+6. Use plain ASCII hyphen '-' only. Never use the no-break hyphen (‑), non-breaking spaces or other exotic Unicode punctuation.
 
 Example output format:
 fix(api): resolve null pointer exception when user profile is missing
