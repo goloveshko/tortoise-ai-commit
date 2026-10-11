@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Dual-mode AI commit message generator for TortoiseGit and CLI.
 .DESCRIPTION
