@@ -6,5 +6,19 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 
-# Shell scripts must always use LF
+# Linux / Shell scripts must always use LF
 *.sh text eol=lf
+
+# Documentation, configs and prompt templates (always LF)
+*.md text eol=lf
+*.txt text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+LICENSE text eol=lf
+
+# Binary media assets (do not touch line endings)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
