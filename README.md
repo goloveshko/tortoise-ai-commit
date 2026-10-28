@@ -21,7 +21,8 @@
   - `gitmoji` (emoji-prefixed conventional commits)
 - 🔍 **Deep Function Context (`-w` / `--context`):** Use `git diff -W` to provide the LLM with the entire enclosing function context, producing far more accurate commit descriptions for localized changes.
 - 🎯 **Targeted File Selection:** Pass specific files directly in the CLI (`ai-commit file1 file2`) to generate messages exclusively for those changes.
-- 🧹 **Smart Draft & Scratchpad Filter:** Automatically exclude untracked drafts, notes, or scratchpads using customizable glob patterns (`$AI_EXCLUDE`).
+- 📦 **Index-First Accuracy:** By default the tool analyzes **only the Git index** (`git diff --cached`), so the message describes exactly what will be committed. Untracked files and unstaged edits are never mentioned. Use `--all` (or `$AI_INCLUDE_UNSTAGED = $true`) to widen the analysis to the whole working tree.
+- 🧹 **Smart Draft & Scratchpad Filter:** Automatically exclude drafts, notes, or scratchpads using customizable glob patterns (`$AI_EXCLUDE`).
 - 🌐 **Universal Multilingual Support:** Supports any ISO 639-1 language code (`en`, `ru`, `de`, `es`, `fr`, `ja`, etc.) or full language name via built-in .NET `CultureInfo`.
 - 🛠️ **Correct UTF-8 Everywhere:** Responses are decoded from raw bytes with explicit UTF-8, so Cyrillic and other non-ASCII commit messages never turn into mojibake even in Windows PowerShell 5.1.
 
@@ -78,11 +79,14 @@ To run `ai-commit` from anywhere in any terminal:
 2. Open any terminal in any Git repository and run:
 
 ```bash
-# Generate commit message for all staged/unstaged changes:
+# Generate a message for the staged changes (Git index) only:
 ai-commit
 
 # Generate with full function context (-W / --function-context):
 ai-commit -w
+
+# Include unstaged changes and untracked files as well:
+ai-commit --all
 
 # Generate only for specific files:
 ai-commit src/main.cpp include/config.h
@@ -90,6 +94,8 @@ ai-commit src/main.cpp include/config.h
 # Combine flags and specific files:
 ai-commit -w src/auth.go
 ```
+
+> 📦 **What gets analyzed:** by default the tool reads `git diff --cached`, i.e. only what you have staged with `git add`. Files that just sit in the folder (untracked) and unstaged edits are ignored, so the generated message never mentions changes that will not be committed. Add `--all` when you want the whole working tree (staged + unstaged + untracked) described instead.
 
 ### Option B: TortoiseGit Hook (GUI)
 
@@ -133,6 +139,16 @@ If you always want the AI to analyze entire functions instead of small diff hunk
 ```powershell
 $AI_EXPAND_CONTEXT = $true
 ```
+
+### Analyzing the Whole Working Tree
+
+The default scope is the Git index — only staged changes are described. To make the tool analyze every change in the working tree (staged + unstaged + untracked files) on every run, enable it globally:
+
+```powershell
+$AI_INCLUDE_UNSTAGED = $true
+```
+
+This is especially handy for the TortoiseGit hook, where CLI flags cannot be passed.
 
 ---
 

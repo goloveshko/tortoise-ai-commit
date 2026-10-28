@@ -13,6 +13,8 @@ param(
     [string]$CWD,
     [Alias("w", "context")]
     [switch]$FunctionContext,
+    [Alias("a", "all")]
+    [switch]$IncludeAll,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$CliFiles
 )
@@ -44,6 +46,7 @@ if (-not $AI_LANGUAGE) { $AI_LANGUAGE = "en" }
 if (-not $AI_FORMAT) { $AI_FORMAT = "conventional-body" }
 if (-not $AI_EXCLUDE) { $AI_EXCLUDE = @() }
 if ($null -eq $AI_EXPAND_CONTEXT) { $AI_EXPAND_CONTEXT = $false }
+if ($null -eq $AI_INCLUDE_UNSTAGED) { $AI_INCLUDE_UNSTAGED = $false }
 if (-not $AI_TIMEOUT) { $AI_TIMEOUT = 60 }
 if (-not $AI_MAX_DIFF_CHARS) { $AI_MAX_DIFF_CHARS = 6000 }
 if ($null -eq $AI_TEMPERATURE) { $AI_TEMPERATURE = 0.1 }
@@ -60,7 +63,7 @@ try {
 }
 
 # ------------------------------------------------------------------------------
-# 1. Determine files to include in diff
+# 1. Determine which changes to describe
 # ------------------------------------------------------------------------------
 
 # Detect if launched by TortoiseGit (TortoiseGit supplies a temporary MessageFile and a valid CWD directory)
@@ -68,16 +71,26 @@ $isTortoiseGit = $MessageFile -and $CWD -and (Test-Path $CWD -PathType Container
 # In CLI mode, remaining arguments represent user-specified target files
 $specifiedFiles = @()
 if (-not $isTortoiseGit) {
-    $allArgs = @($PathListFile, $MessageFile, $CWD) + $CliFiles | Where-Object {
-        -not [string]::IsNullOrWhiteSpace($_) -and $_ -ne "-w" -and $_ -ne "--context"
+    $allArgs = @($PathListFile, $MessageFile, $CWD) + $CliFiles | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+    # PowerShell binds only single-dash switches, so translate GNU-style flags by hand
+    foreach ($arg in $allArgs) {
+        switch ($arg) {
+            '--context' { $FunctionContext = $true }
+            '--all'     { $IncludeAll = $true }
+            default     { $specifiedFiles += $arg }
+        }
     }
-    $specifiedFiles = @($allArgs)
+
     $MessageFile = $null
     $PathListFile = $null
 }
 
 # Determine if context expansion is active (via CLI switch -w or environment config)
 $expandContext = $FunctionContext.IsPresent -or ($true -eq $AI_EXPAND_CONTEXT)
+
+# Analyze the whole working tree (unstaged + untracked files) only when explicitly requested
+$includeAll = $IncludeAll.IsPresent -or ($true -eq $AI_INCLUDE_UNSTAGED)
 
 # Build arguments array for git diff
 $diffArgs = @()
@@ -88,13 +101,6 @@ if ($expandContext) {
 # Keep non-ASCII paths readable (no octal escaping) for filters and the LLM prompt
 $gitCfg = @("-c", "core.quotepath=false")
 
-# In a repository without commits, HEAD does not exist yet: compare against Git's empty tree
-if (git rev-parse --verify -q HEAD 2>$null) {
-    $baseRef = "HEAD"
-} else {
-    $baseRef = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-}
-
 $targetPaths = @()
 if ($PathListFile -and (Test-Path $PathListFile)) {
     $rawPaths = Get-Content $PathListFile | Where-Object { $_.Trim() -ne "" }
@@ -103,61 +109,68 @@ if ($PathListFile -and (Test-Path $PathListFile)) {
     }
 }
 
-$stagedDiff = git @gitCfg diff @diffArgs --cached
-$diff = ""
-
-if ($specifiedFiles.Count -gt 0) {
-    # Priority A: Specific files passed via CLI arguments
-    $specifiedStaged = git @gitCfg diff @diffArgs --cached -- $specifiedFiles
-    if ($specifiedStaged) {
-        $diff = $specifiedStaged
-    } else {
-        $diff = git @gitCfg diff @diffArgs $baseRef -- $specifiedFiles
-    }
-} elseif ($targetPaths.Count -gt 0) {
-    # Priority B: Specific files were selected in Windows Explorer (TortoiseGit).
-    # Takes precedence over the staged diff so the message describes the selection.
-    $diff = git @gitCfg diff @diffArgs $baseRef -- $targetPaths
-} elseif ($stagedDiff) {
-    # Priority C: Changes are already staged in Git index
-    $diff = $stagedDiff
-} else {
-    # Priority D: Entire working tree
-    $diff = git @gitCfg diff @diffArgs $baseRef
-}
-
-# Append new (untracked) files, which git diff never shows on its own
+# Scope: files named on the command line or selected in Windows Explorer (TortoiseGit)
 $scope = @()
 if ($specifiedFiles.Count -gt 0) { $scope = $specifiedFiles }
 elseif ($targetPaths.Count -gt 0) { $scope = $targetPaths }
 
-$repoRoot = (git rev-parse --show-toplevel 2>$null) -replace '/', '\'
-if ($repoRoot) {
-    $scopeAbs = @($scope | ForEach-Object {
-        $full = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine((Get-Location).Path, $_))
-        if ($full -like "$repoRoot*") { $full }
-    })
-    Push-Location $repoRoot
-    try {
-        $untracked = @(git @gitCfg ls-files --others --exclude-standard -- $scopeAbs)
-        $newFileDiffs = foreach ($f in $untracked) {
-            git @gitCfg diff --no-index -- "/dev/null" $f
-        }
-    } finally {
-        Pop-Location
+# ------------------------------------------------------------------------------
+# The Git index is the single source of truth.
+# Only staged changes end up in the commit, so only staged changes may be
+# described. Files that merely exist in the working directory (untracked) or
+# carry unstaged edits are never part of the message unless --all is passed.
+# ------------------------------------------------------------------------------
+if ($scope.Count -gt 0) {
+    $diff = git @gitCfg diff @diffArgs --cached -- $scope
+} else {
+    $diff = git @gitCfg diff @diffArgs --cached
+}
+
+# Opt-in: extend the analysis with unstaged modifications and untracked files
+if ($includeAll) {
+    $extraSections = @()
+
+    # Unstaged modifications of tracked files (working tree vs index)
+    if ($scope.Count -gt 0) {
+        $unstagedDiff = git @gitCfg diff @diffArgs -- $scope
+    } else {
+        $unstagedDiff = git @gitCfg diff @diffArgs
     }
-    if ($newFileDiffs) {
-        $untrackedDiff = ($newFileDiffs -join "`n")
-        if ($diff) { $diff = $diff + "`n" + $untrackedDiff } else { $diff = $untrackedDiff }
+    if ($unstagedDiff) { $extraSections += $unstagedDiff }
+
+    # Untracked files never appear in git diff, so render them against /dev/null
+    $repoRoot = (git rev-parse --show-toplevel 2>$null) -replace '/', '\'
+    if ($repoRoot) {
+        $scopeAbs = @($scope | ForEach-Object {
+            $full = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine((Get-Location).Path, $_))
+            if ($full -like "$repoRoot*") { $full }
+        })
+        Push-Location $repoRoot
+        try {
+            $untracked = @(git @gitCfg ls-files --others --exclude-standard -- $scopeAbs)
+            $newFileDiffs = foreach ($f in $untracked) {
+                git @gitCfg diff --no-index -- "/dev/null" $f
+            }
+        } finally {
+            Pop-Location
+        }
+        if ($newFileDiffs) { $extraSections += ($newFileDiffs -join "`n") }
+    }
+
+    if ($extraSections.Count -gt 0) {
+        $extraDiff = ($extraSections -join "`n")
+        if ($diff) { $diff = $diff + "`n" + $extraDiff } else { $diff = $extraDiff }
     }
 }
 
 if (-not $diff) {
     if (-not $isTortoiseGit) {
         if ($specifiedFiles.Count -gt 0) {
-            Write-Host "No changes detected in specified files: $($specifiedFiles -join ', ')" -ForegroundColor Yellow
+            Write-Host "No staged changes detected in specified files: $($specifiedFiles -join ', ')" -ForegroundColor Yellow
+            Write-Host "Stage them first (git add) or add --all to analyze the working tree as well." -ForegroundColor DarkGray
         } else {
-            Write-Host "No staged or unstaged changes detected in repository." -ForegroundColor Yellow
+            Write-Host "No staged changes detected in repository." -ForegroundColor Yellow
+            Write-Host "Stage your changes (git add) or run 'ai-commit --all' to analyze the whole working tree." -ForegroundColor DarkGray
         }
     }
     exit 0
@@ -215,6 +228,13 @@ if ($isCliMode) {
         Write-Host "  Context   : " -ForegroundColor DarkGray -NoNewline
         Write-Host "Full functions (-W)" -ForegroundColor DarkGreen
     }
+    if ($includeAll) {
+        Write-Host "  Scope     : " -ForegroundColor DarkGray -NoNewline
+        Write-Host "Index + working tree (--all)" -ForegroundColor DarkGreen
+    } else {
+        Write-Host "  Scope     : " -ForegroundColor DarkGray -NoNewline
+        Write-Host "Git index (staged only)" -ForegroundColor DarkGreen
+    }
     if ($specifiedFiles.Count -gt 0) {
         Write-Host "  Files     : " -ForegroundColor DarkGray -NoNewline
         Write-Host ($specifiedFiles -join ", ") -ForegroundColor White
@@ -246,11 +266,20 @@ $langInstruction
 "@
 }
 
+# Tell the model which slice of the repository it is looking at, so it never
+# describes changes that are not part of the commit
+if ($includeAll) {
+    $diffLabel = "the full working-tree diff (staged, unstaged and untracked files)"
+} else {
+    $diffLabel = "the staged diff from the Git index (exactly the changes that will be committed)"
+}
+$diffLabel += ". Describe only the changes that are visible in this diff; never mention a file or a change that is absent from it."
+
 $payload = @{
     model = $AI_MODEL
     messages = @(
         @{ role = "system"; content = $systemPrompt },
-        @{ role = "user"; content = "Here is the git diff:`n$diffText" }
+        @{ role = "user"; content = "Here is ${diffLabel}:`n$diffText" }
     )
     temperature = $AI_TEMPERATURE
 } | ConvertTo-Json -Depth 5

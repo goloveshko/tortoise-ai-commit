@@ -55,6 +55,12 @@ $AI_EXCLUDE = @(
 # Can also be toggled on-the-fly via the '-w' CLI flag (e.g. ai-commit -w).
 $AI_EXPAND_CONTEXT = $false
 
+# Analyze the whole working tree (staged + unstaged changes + untracked files)
+# instead of the Git index only. Keep it disabled so the message describes
+# exactly the changes that will be committed.
+# Can also be toggled on-the-fly via the '-a' / '--all' CLI flag (e.g. ai-commit --all).
+$AI_INCLUDE_UNSTAGED = $false
+
 # --- Request Tuning ---
 # Seconds to wait for the LLM response (local models need more on cold start)
 $AI_TIMEOUT = 60
